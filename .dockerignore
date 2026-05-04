@@ -1,0 +1,9 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+knowledge_cache.db
+outputs/
+.claude/
+docs/
