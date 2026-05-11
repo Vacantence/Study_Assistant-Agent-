@@ -87,3 +87,15 @@ export interface ExportResult {
   title: string;
   markdown: string;
 }
+
+export interface LLMProvider {
+  id: number | null;
+  user_id?: number;
+  name: string;
+  api_base: string;
+  api_key: string;
+  model: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}

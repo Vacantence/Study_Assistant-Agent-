@@ -7,6 +7,7 @@ import ChatPage from './pages/ChatPage';
 import ReviewPage from './pages/ReviewPage';
 import GraphPage from './pages/GraphPage';
 import DocumentsPage from './pages/DocumentsPage';
+import SettingsPage from './pages/SettingsPage';
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/chat" replace />} />

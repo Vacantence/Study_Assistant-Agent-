@@ -11,6 +11,7 @@ from src.knowledge_cache.database import (
     DocumentDatabase,
     CacheDatabase,
     UserMemoryManager,
+    LLMProviderDatabase,
 )
 from src.tools.search import search_web
 
@@ -274,3 +275,61 @@ def get_stats(user=Depends(get_current_user)):
 @router.post("/search")
 def search(query: str):
     return search_web.invoke({"query": query})
+
+
+# ─── LLM 提供商配置 ────────────────────────────────────────
+
+
+@router.get("/llm/providers")
+def list_providers(user=Depends(get_current_user)):
+    return LLMProviderDatabase().list_by_user(user["id"])
+
+
+@router.get("/llm/providers/active")
+def get_active_provider(user=Depends(get_current_user)):
+    provider = LLMProviderDatabase().get_active(user["id"])
+    if not provider:
+        from src.config import Config
+        return {
+            "id": None,
+            "name": "默认 (DeepSeek)",
+            "api_base": Config.DEEPSEEK_API_BASE,
+            "model": Config.DEEPSEEK_MODEL,
+            "is_active": True,
+        }
+    return provider
+
+
+@router.post("/llm/providers")
+def add_provider(name: str, api_base: str, api_key: str, model: str, user=Depends(get_current_user)):
+    if not name or not api_base or not api_key or not model:
+        raise HTTPException(status_code=422, detail="所有字段均为必填")
+    provider_id = LLMProviderDatabase().add(user["id"], name, api_base, api_key, model)
+    return {"id": provider_id}
+
+
+@router.put("/llm/providers/{provider_id}")
+def update_provider(provider_id: int, name: str, api_base: str, api_key: str, model: str, user=Depends(get_current_user)):
+    provider = LLMProviderDatabase().get_by_id(provider_id)
+    if not provider or provider["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="提供商不存在")
+    LLMProviderDatabase().update(provider_id, name, api_base, api_key, model)
+    return {"status": "ok"}
+
+
+@router.post("/llm/providers/{provider_id}/activate")
+def activate_provider(provider_id: int, user=Depends(get_current_user)):
+    provider = LLMProviderDatabase().get_by_id(provider_id)
+    if not provider or provider["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="提供商不存在")
+    LLMProviderDatabase().set_active(user["id"], provider_id)
+    return {"status": "ok"}
+
+
+@router.delete("/llm/providers/{provider_id}")
+def delete_provider(provider_id: int, user=Depends(get_current_user)):
+    provider = LLMProviderDatabase().get_by_id(provider_id)
+    if not provider or provider["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="提供商不存在")
+    LLMProviderDatabase().delete(provider_id, user["id"])
+    return {"status": "ok"}

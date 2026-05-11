@@ -165,6 +165,25 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_ke_user ON knowledge_edges(user_id)
         """)
 
+        # LLM 提供商配置
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_providers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                api_base TEXT NOT NULL,
+                api_key TEXT NOT NULL,
+                model TEXT NOT NULL,
+                is_active INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_user ON llm_providers(user_id)
+        """)
+
         # 迁移：老表可能缺少列
         try:
             conn.execute("ALTER TABLE messages ADD COLUMN filepath TEXT")
@@ -581,6 +600,79 @@ class KnowledgeGraphDatabase:
         with _get_connection() as conn:
             conn.execute("DELETE FROM knowledge_edges WHERE user_id = ?", (user_id,))
             conn.execute("DELETE FROM knowledge_nodes WHERE user_id = ?", (user_id,))
+
+
+# ----- LLM 提供商配置 -----
+
+class LLMProviderDatabase:
+    def list_by_user(self, user_id: int) -> list[dict]:
+        with _get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM llm_providers WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_by_id(self, provider_id: int) -> dict | None:
+        with _get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM llm_providers WHERE id = ?", (provider_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_active(self, user_id: int) -> dict | None:
+        with _get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM llm_providers WHERE user_id = ? AND is_active = 1 LIMIT 1",
+                (user_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def add(self, user_id: int, name: str, api_base: str, api_key: str, model: str) -> int:
+        now = datetime.now().isoformat()
+        has_active = self.get_active(user_id) is not None
+        with _get_connection() as conn:
+            cur = conn.execute(
+                """INSERT INTO llm_providers
+                   (user_id, name, api_base, api_key, model, is_active, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, name, api_base, api_key, model,
+                 0 if has_active else 1, now, now),
+            )
+            return cur.lastrowid
+
+    def update(self, provider_id: int, name: str, api_base: str, api_key: str, model: str):
+        now = datetime.now().isoformat()
+        with _get_connection() as conn:
+            conn.execute(
+                """UPDATE llm_providers SET name=?, api_base=?, api_key=?, model=?,
+                   updated_at=? WHERE id=?""",
+                (name, api_base, api_key, model, now, provider_id),
+            )
+
+    def set_active(self, user_id: int, provider_id: int):
+        with _get_connection() as conn:
+            conn.execute(
+                "UPDATE llm_providers SET is_active = 0 WHERE user_id = ?",
+                (user_id,),
+            )
+            conn.execute(
+                "UPDATE llm_providers SET is_active = 1 WHERE id = ? AND user_id = ?",
+                (provider_id, user_id),
+            )
+
+    def delete(self, provider_id: int, user_id: int):
+        was_active = self.get_by_id(provider_id)
+        with _get_connection() as conn:
+            conn.execute(
+                "DELETE FROM llm_providers WHERE id = ? AND user_id = ?",
+                (provider_id, user_id),
+            )
+        # 如果删除了活跃的，激活另一个最近的
+        if was_active and was_active.get("is_active"):
+            remaining = self.list_by_user(user_id)
+            if remaining:
+                self.set_active(user_id, remaining[0]["id"])
 
 
 # 初始化

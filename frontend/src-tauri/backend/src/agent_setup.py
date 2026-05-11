@@ -5,7 +5,7 @@ from langchain_core.tools import StructuredTool
 from src.config import Config
 from src.tools.search import search_web
 from src.tools.crawler import scrape_page
-from src.knowledge_cache.database import CacheDatabase, UserMemoryManager
+from src.knowledge_cache.database import CacheDatabase, UserMemoryManager, LLMProviderDatabase
 from src.knowledge_cache.embeddings import EmbeddingManager
 
 BASE_SYSTEM_PROMPT = """你是一个个人学习助手。你的目标是帮助用户深入学习某个知识点。
@@ -27,8 +27,34 @@ BASE_SYSTEM_PROMPT = """你是一个个人学习助手。你的目标是帮助�
 """
 
 
+def _get_llm_config(user_id: int | None = None) -> dict:
+    """获取用户活跃的 LLM 配置，若无则返回 Config 默认值"""
+    if user_id is not None:
+        provider = LLMProviderDatabase().get_active(user_id)
+        if provider:
+            return {
+                "model": provider["model"],
+                "api_key": provider["api_key"],
+                "api_base": provider["api_base"],
+            }
+    return {
+        "model": Config.DEEPSEEK_MODEL,
+        "api_key": Config.DEEPSEEK_API_KEY,
+        "api_base": Config.DEEPSEEK_API_BASE,
+    }
+
+
+def _build_llm(config: dict):
+    return ChatOpenAI(
+        model=config["model"],
+        openai_api_key=config["api_key"],
+        openai_api_base=config["api_base"],
+        temperature=0.7,
+    )
+
+
 def build_agent(user_id: int = None):
-    # 基础工具
+    llm_config = _get_llm_config(user_id)
     tools = [
         _query_cache_tool,
         _query_documents_tool,
@@ -58,12 +84,7 @@ def build_agent(user_id: int = None):
         tools.append(_make_create_review_cards_tool(user_id))
         tools.append(_make_update_knowledge_graph_tool(user_id))
 
-    llm = ChatOpenAI(
-        model=Config.DEEPSEEK_MODEL,
-        openai_api_key=Config.DEEPSEEK_API_KEY,
-        openai_api_base=Config.DEEPSEEK_API_BASE,
-        temperature=0.7,
-    )
+    llm = _build_llm(llm_config)
 
     agent = create_agent(
         llm,
@@ -181,10 +202,11 @@ def _make_create_review_cards_tool(user_id: int):
         from src.knowledge_cache.database import ReviewCardDatabase
         from openai import OpenAI
 
-        client = OpenAI(api_key=Config.DEEPSEEK_API_KEY, base_url=Config.DEEPSEEK_API_BASE)
+        llm_config = _get_llm_config(user_id)
+        client = OpenAI(api_key=llm_config["api_key"], base_url=llm_config["api_base"])
         try:
             resp = client.chat.completions.create(
-                model=Config.DEEPSEEK_MODEL,
+                model=llm_config["model"],
                 messages=[{
                     "role": "system",
                     "content": f"基于以下学习内容，生成{Config.REVIEW_CARDS_PER_CONVERSATION}个问答复习卡片。"
@@ -226,10 +248,11 @@ def _make_update_knowledge_graph_tool(user_id: int):
         from src.knowledge_cache.database import KnowledgeGraphDatabase
         from openai import OpenAI
 
-        client = OpenAI(api_key=Config.DEEPSEEK_API_KEY, base_url=Config.DEEPSEEK_API_BASE)
+        llm_config = _get_llm_config(user_id)
+        client = OpenAI(api_key=llm_config["api_key"], base_url=llm_config["api_base"])
         try:
             resp = client.chat.completions.create(
-                model=Config.DEEPSEEK_MODEL,
+                model=llm_config["model"],
                 messages=[{
                     "role": "system",
                     "content": "分析以下学习内容，提取核心知识点及其关系。"
