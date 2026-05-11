@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --color-surface: #ffffff;
+  --color-surface-alt: #f9fafb;
+  --color-surface-hover: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-accent-light: #d1fae5;
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-chat-user: #e5e7eb;
+  --color-chat-ai: #d1fae5;
+}
+
+.dark {
+  --color-surface: #1f2937;
+  --color-surface-alt: #111827;
+  --color-surface-hover: #374151;
+  --color-border: #374151;
+  --color-text-primary: #f9fafb;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: #6b7280;
+  --color-accent: #34d399;
+  --color-accent-hover: #10b981;
+  --color-accent-light: #064e3b;
+  --color-danger: #f87171;
+  --color-danger-hover: #ef4444;
+  --color-chat-user: #374151;
+  --color-chat-ai: #064e3b;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
